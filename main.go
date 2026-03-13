@@ -426,14 +426,11 @@ func (lt *LogTailer) readLastNLines(maxLines int) ([]string, int64, error) {
 	}
 
 	chunkSize := int64(64 * 1024)
-	if fileSize < chunkSize {
-		chunkSize = fileSize
-	}
-
-	var allLines []string
+	var allContent []byte
 	position := fileSize
+	lineCount := 0
 
-	for len(allLines) < maxLines && position > 0 {
+	for position > 0 && lineCount <= maxLines {
 		readSize := chunkSize
 		if position < readSize {
 			readSize = position
@@ -451,29 +448,19 @@ func (lt *LogTailer) readLastNLines(maxLines int) ([]string, int64, error) {
 			return nil, 0, err
 		}
 
-		content := convertToUTF8(buf[:n])
-		lines := splitLines(content)
-
-		if position > 0 && len(lines) > 0 && len(allLines) == 0 {
-			lines = lines[:len(lines)-1]
-		}
-
-		if position > 0 && len(lines) > 0 {
-			if len(allLines) > 0 {
-				allLines[0] = lines[len(lines)-1] + allLines[0]
-				lines = lines[:len(lines)-1]
-			}
-		}
-
-		allLines = append(lines, allLines...)
+		allContent = append(buf[:n], allContent...)
+		lineCount = bytes.Count(allContent, []byte{'\n'})
 	}
 
-	if len(allLines) > maxLines {
-		allLines = allLines[len(allLines)-maxLines:]
+	content := convertToUTF8(allContent)
+	lines := splitLines(content)
+
+	if len(lines) > maxLines {
+		lines = lines[len(lines)-maxLines:]
 	}
 
 	var result []string
-	for _, line := range allLines {
+	for _, line := range lines {
 		if line != "" {
 			result = append(result, line)
 		}
