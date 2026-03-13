@@ -538,16 +538,17 @@ func (lt *LogTailer) addClient(conn *websocket.Conn) {
 	lt.clients[conn] = true
 	lt.clientsMux.Unlock()
 
-	lt.linesMux.RLock()
-	lines := make([]string, len(lt.lastLines))
-	copy(lines, lt.lastLines)
-	lastSize := lt.lastSize
-	lt.linesMux.RUnlock()
+	lines, fileSize, err := lt.readLastNLines(lt.maxLines)
+	if err != nil {
+		log.Printf("读取历史日志失败: %v", err)
+		lines = []string{}
+		fileSize = 0
+	}
 
 	initMsg := InitMessage{
 		Type:     "init",
 		Filename: filepath.Base(lt.filename),
-		Filesize: lastSize,
+		Filesize: fileSize,
 		Lines:    lines,
 	}
 
